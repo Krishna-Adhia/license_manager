@@ -18,10 +18,10 @@ class SpeedCacheProLicense extends Controller
     }
 
     function createLicenseKey(Request $createKeyParams){
-        $licenseKey = generate_license_key();
+        $licenseKey = $this->generate_license_key();
         $newKey = new license();
         $newKey->license_key = $licenseKey;
-        $newKey->whmcs_service_id = $createKeyParams->$whmserviceid;
+        $newKey->whmcs_service_id = $createKeyParams->whmserviceid;
         $newKey->status = 'Active';
         $newKey->package = $createKeyParams->packagetype;
         $newKey->expiry_date = '2026-09-30';
@@ -34,15 +34,14 @@ class SpeedCacheProLicense extends Controller
 
     }
 
-    function terminateLicenseKey(Request $terminateKeyParams){
-        $terminateKey = new license();        
+    function terminateLicenseKey(Request $terminateKeyParams){        
         //find the license key in db
-        $key = license::where('license_key',$terminateKeyParams->licenseKey)->first();
-        if(!$key){
+        $terminateLicenseKey = license::where('license_key',$terminateKeyParams->licenseKey)->first();
+        if(!$terminateLicenseKey){
             return ["result"=>"Key not found"];
         } else {
-            $terminateKey->status = 'Terminated';
-            if($terminateKey->save()){
+            $terminateLicenseKey->status = 'Terminated';
+            if($terminateLicenseKey->save()){
                 return ["result"=>"License key terminated"];
             } else{
                 return ["result"=>"Something went wrong while terminating license key"];
@@ -50,15 +49,14 @@ class SpeedCacheProLicense extends Controller
         }
     }
 
-    function suspendLicenseKey(Request $suspendKeyParams){
-        $suspendKey = new license();        
+    function suspendLicenseKey(Request $suspendKeyParams){        
         //find the license key in db
-        $key = license::where('license_key',$suspendKeyParams->licenseKey)->first();
-        if(!$key){
+        $suspendLicenseKey = license::where('license_key',$suspendKeyParams->licenseKey)->first();
+        if(!$suspendLicenseKey){
             return ["result"=>"Key not found"];
         } else {
-            $suspendKey->status = 'Suspended';
-            if($suspendKey->save()){
+            $suspendLicenseKey->status = 'Suspended';
+            if($suspendLicenseKey->save()){
                 return ["result"=>"License key suspended"];
             } else{
                 return ["result"=>"Something went wrong while suspending license key"];
@@ -66,16 +64,14 @@ class SpeedCacheProLicense extends Controller
         }
     }
 
-    function unsuspendLicenseKey(Request $unsuspendKeyParams){
-        $unsuspendKey = new license();
-
+    function unsuspendLicenseKey(Request $unsuspendKeyParams){       
         //find the license key in db        
-        $key = license::where('license_key',$unsuspendKeyParams->licenseKey)->first();
-        if(!$key){
+        $unsuspendLicenseKey = license::where('license_key',$unsuspendKeyParams->licenseKey)->first();
+        if(!$unsuspendLicenseKey){
             return ["result"=>"Key not found"];
         } else{
-            $unsuspendKey->status = 'Active';
-            if($unsuspendKey->save()){
+            $unsuspendLicenseKey->status = 'Active';
+            if($unsuspendLicenseKey->save()){
                 return ["result"=>"License key unsuspended"];
             } else{
                 return ["result"=>"Something went wrong while unsuspending license key"];
@@ -83,14 +79,13 @@ class SpeedCacheProLicense extends Controller
         }
     }
 
-    function updatePlan(Request $updatePlanParams){
-        $updatePlan = new license();
-        $key = license::where('license_key',$updatePlanParams->licenseKey)->first();
-        if(!$key){
+    function updatePlan(Request $updatePlanParams){        
+        $updatePlanLicenseKey = license::where('license_key',$updatePlanParams->licenseKey)->first();
+        if(!$updatePlanLicenseKey){
             return ["result"=>"Key not found"];
         } else{
-            $updatePlan->package = $updatePlanParams->package;
-            if($updatePlan->save()){
+             $updatePlanLicenseKey->package = $updatePlanParams->package;
+            if($updatePlanLicenseKey->save()){
                 return ["result"=>"Plan upgraded"];
             } else{
                 ["result"=>"Something went wrong while upgrading plan"];
@@ -98,15 +93,13 @@ class SpeedCacheProLicense extends Controller
         }
     }    
 
-    function deleteLicenseKey(Request $deleteKeyParams){
-        $deleteKey = new license();
-
+    function deleteLicenseKey(Request $deleteKeyParams){        
         //delete the license key
-        $key = license::where('license_key',$deleteKeyParams->licenseKey)->first();
-        if(!$key){
+        $deleteLicenseKey = license::where('license_key',$deleteKeyParams->licenseKey)->first();
+        if(!$deleteLicenseKey){
             return ["result"=>"Key not found"];
         } else{
-            if($deleteKey->destroy($deleteKeyParams->licenseKey)){
+            if($deleteLicenseKey->delete()){
                 return ["result"=>"License key deleted"];
             } else{
                 return ["result"=>"Something went wrong while deleting license key"];
@@ -114,13 +107,12 @@ class SpeedCacheProLicense extends Controller
         }
     }
 
-    function getLicenseKey(Request $getKeyParams){
-        $getKeyDetails = new license();
-        $key = license::where('license_key',$getKeyParams->licenseKey)->first();
-        if(!$key){
+    function getLicenseKey(Request $getKeyParams){       
+        $getKeyDetails = license::where('license_key',$getKeyParams->licenseKey)->first();
+        if(!$getKeyDetails){
             return ["result"=>"Key not found"];
         } else{
-            return ["result"=>$key];
+            return ["result"=>$getKeyDetails];
         }
     }
 }

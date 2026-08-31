@@ -8,24 +8,25 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::middleware('verify.api.key')->group(function () {
+    //Create license key
+    Route::post('/createkey/{whmserviceid}/{packagetype}',[SpeedCacheProLicense::class,'createLicenseKey']);
 
-//Create license key
-Route::POST('/createkey/{whmserviceid}/{packagetype}',[SpeedCacheProLicense::class,'createLicenseKey']);
+    //Terminate license key
+    Route::put('/terminatekey/{licenseKey}',[SpeedCacheProLicense::class,'terminateLicenseKey']);
 
-//Terminate license key
-Route::PUT('/terminatekey/{licenseKey}',[SpeedCacheProLicense::class,'terminateLicenseKey']);
+    //Suspend license key
+    Route::put('/suspendkey/{licenseKey}',[SpeedCacheProLicense::class,'suspendLicenseKey']);
 
-//Suspend license key
-Route::PUT('/suspendkey/{licenseKey}',[SpeedCacheProLicense::class,'suspendLicenseKey']);
+    //Unsuspend license key
+    Route::put('/unsuspendkey/{licenseKey}',[SpeedCacheProLicense::class,'unsuspendLicenseKey']);
 
-//Unsuspend license key
-Route::PUT('/unsuspendkey/{licenseKey}',[SpeedCacheProLicense::class,'unsuspendLicenseKey']);
+    //Update plan
+    Route::put('/updateplan/{licenseKey}/{package}',[SpeedCacheProLicense::class,'updatePlan']);
 
-//Update plan
-Route::PUT('/updateplan/{licenseKey}',[SpeedCacheProLicense::class,'updatePlan']);
+    //Delete plan
+    Route::delete('/deleteplan/{licenseKey}',[SpeedCacheProLicense::class,'deleteLicenseKey']);
 
-//Delete plan
-Route::DELETE('/deleteplan/{licenseKey}',[SpeedCacheProLicense::class,'deleteLicenseKey']);
-
-//Get details of license key
-Route::GET('/getlicensekey/{licenseKey}',[SpeedCacheProLicense::class,'getLicenseKey']);t
+    //Get details of license key
+    Route::get('/getlicensekey/{licenseKey}',[SpeedCacheProLicense::class,'getLicenseKey']);
+});

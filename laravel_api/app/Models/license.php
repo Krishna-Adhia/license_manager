@@ -6,5 +6,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class license extends Model
 {
-    //
+    protected $table = 'license';
 }
