@@ -1,0 +1,10 @@
+# Laravel
+laravel-api/.env
+laravel-api/vendor/
+laravel-api/node_modules/
+laravel-api/storage/*.key
+laravel-api/storage/logs/*.log
+
+# General
+.DS_Store
+Thumbs.db
