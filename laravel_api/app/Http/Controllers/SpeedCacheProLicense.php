@@ -7,112 +7,193 @@ use App\Models\license;
 
 class SpeedCacheProLicense extends Controller
 {
-    function generate_license_key(){
-        $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    function generate_license_key(){        
         $licenseKey = '';
-        for($i = 0; $i < 10; $i++){
-            $licenseKey .= $characters[rand(0,(strlen($characters)-1))];        
-        }
-
+        $licenseKey = strtoupper(implode('-', str_split(bin2hex(random_bytes(8)), 4)));     
+        
         return $licenseKey;
     }
 
     function createLicenseKey(Request $createKeyParams){
-        $licenseKey = $this->generate_license_key();
-        $newKey = new license();
-        $newKey->license_key = $licenseKey;
-        $newKey->whmcs_service_id = $createKeyParams->whmserviceid;
-        $newKey->status = 'Active';
-        $newKey->package = $createKeyParams->packagetype;
-        $newKey->expiry_date = '2026-09-30';
+        //validate input (missing/wrong data returns 422)
+        $data = $createKeyParams->validate([
+            'whmserviceid' => 'required|integer',
+            'billingcycle' => 'required|string|max:50',
+            'domainsAvailable' => 'required|integer|min:1'            
+        ]);
 
-        if($newKey->save()){
-            return ["result"=>"License key created successfully"];
-        } else {
-            return ["result"=>"Something went wrong while creating license key"];
+        //for existing serice second liscense should not get created
+        $existing = license::where('whmcs_service_id',$data['whmserviceid'])->first();
+        if($existing){
+            return response()->json([
+                "result" => "License already exists for this service",
+                "license_key" => $existing->license_key,
+            ],200);
         }
+        try{
+            $newKey = new license();
+            $licenseKey = $this->generate_license_key();        
+            $newKey->license_key = $licenseKey;
+            $newKey->whmcs_service_id = $createKeyParams->whmserviceid;
+            $newKey->max_domain = $createKeyParams->domainsAvailable;
+            $newKey->status = 'Active';
+            $newKey->billingcycle = $createKeyParams->billingcycle;
+            $newKey->expiry_date = $createKeyParams->nextduedate;
+            $newKey->save();
+        } catch (\Exception $e){
+            \Log::error('Create license failed: '.$e->getMessage());
+            return response()->json(["result" => "Could not create license key"], 500);
+        }
+
+        return response()->json([
+            "result"      => "License key created successfully",
+            "license_key" => $newKey->license_key,
+        ], 201);
 
     }
 
-    function terminateLicenseKey(Request $terminateKeyParams){        
+    //reads and validates whmcs serviceid, and find the license key and return it, if not found return null
+    private function findLicense(Request $request){
+        $data = $request->validate([
+            'whmserviceid' => 'required|integer',
+        ]);
+
+        return license::where('whmcs_service_id',$data['whmserviceid'])->first();
+    }
+
+    private function notFoundLicense(){
+        return response()->json(["result" => "License key not found"], 404);
+    }
+
+    private function serverError($action, \Exception $e){
+        \Log::error("$action failed: ".$e->getMessage());
+        return response()->json(["result" => "Could not $action license key"], 500);
+    }
+
+    function terminateLicenseKey(Request $terminateKeyParams){                        
         //find the license key in db
-        $terminateLicenseKey = license::where('license_key',$terminateKeyParams->licenseKey)->first();
-        if(!$terminateLicenseKey){
-            return ["result"=>"Key not found"];
-        } else {
-            $terminateLicenseKey->status = 'Terminated';
-            if($terminateLicenseKey->save()){
-                return ["result"=>"License key terminated"];
-            } else{
-                return ["result"=>"Something went wrong while terminating license key"];
-            }
+        $license = $this->findLicense($terminateKeyParams);
+        if (!$license){
+            return $this->notFoundLicense();
         }
+
+        if($license->status == 'Terminated'){
+            return response()->json(["result" => "License key already terminated"], 200);
+        }
+
+        try {
+            $license->status = 'Terminated';
+            $license->save();
+        } catch (\Exception $e){
+            return $this->serverError('terminate', $e);
+        }
+
+        return response()->json(["result" => "License key terminated"], 200);
     }
 
     function suspendLicenseKey(Request $suspendKeyParams){        
-        //find the license key in db
-        $suspendLicenseKey = license::where('license_key',$suspendKeyParams->licenseKey)->first();
-        if(!$suspendLicenseKey){
-            return ["result"=>"Key not found"];
-        } else {
-            $suspendLicenseKey->status = 'Suspended';
-            if($suspendLicenseKey->save()){
-                return ["result"=>"License key suspended"];
-            } else{
-                return ["result"=>"Something went wrong while suspending license key"];
-            }
+        $license = $this->findLicense($suspendKeyParams);
+        if(!$license){
+            return $this->notFoundLicense();
         }
+
+        if($license->status == 'Suspended'){
+            return response()->json(["result" => "License key already suspended"], 200);
+        }
+
+        if($license->status != 'Active'){
+            return response()->json(["result" => "Only an active license can be suspended"], 409);
+        }
+
+        try{
+            $license->status = 'Suspended';
+            $license->save();
+        } catch(\Exception $e){
+            return $this->serverError('suspend', $e);
+        }
+        return response()->json(["result" => "License key suspended"], 200);
     }
 
+
     function unsuspendLicenseKey(Request $unsuspendKeyParams){       
-        //find the license key in db        
-        $unsuspendLicenseKey = license::where('license_key',$unsuspendKeyParams->licenseKey)->first();
-        if(!$unsuspendLicenseKey){
-            return ["result"=>"Key not found"];
-        } else{
-            $unsuspendLicenseKey->status = 'Active';
-            if($unsuspendLicenseKey->save()){
-                return ["result"=>"License key unsuspended"];
-            } else{
-                return ["result"=>"Something went wrong while unsuspending license key"];
-            }
+        $license = $this->findLicense($unsuspendKeyParams);
+        if(!$license){
+            return $this->notFoundLicense();            
         }
+
+        if($license->status == 'Active'){
+            return response()->json(["result" => "License key already active"], 200);
+        }
+
+        if($license->status != 'Suspended'){
+            return response()->json(["result" => "Only an suspended license can be unsuspended"], 409);
+        }
+
+        try{
+            $license->status = 'Active';
+            $license->save();
+        } catch(\Exception $e){
+            return $this->serverError('unsuspend',$e);
+        }
+        return response()->json(["result" => "License key unsuspended"], 200);
     }
 
     function updatePlan(Request $updatePlanParams){        
-        $updatePlanLicenseKey = license::where('license_key',$updatePlanParams->licenseKey)->first();
-        if(!$updatePlanLicenseKey){
-            return ["result"=>"Key not found"];
-        } else{
-             $updatePlanLicenseKey->package = $updatePlanParams->package;
-            if($updatePlanLicenseKey->save()){
-                return ["result"=>"Plan upgraded"];
-            } else{
-                ["result"=>"Something went wrong while upgrading plan"];
-            }
+        $data = $updatePlanParams->validate([
+            'whmserviceid'     => 'required|integer',
+            'billingcycle'     => 'required|string|max:50',
+            'domainsAvailable' => 'required|integer|min:1',
+        ]);
+
+        $license = license::where('whmcs_service_id', $data['whmserviceid'])->first();
+        if(!$license){
+            return $this->notFoundLicense();
         }
+
+        if($license->status == 'Terminated'){
+            return response()->json(["result" => "A terminated license cannot be changed"], 409);
+        }
+
+        try {
+            $license->billingcycle = $data['billingcycle'];
+            $license->max_domain   = $data['domainsAvailable'];
+            $license->save();
+        } catch (\Exception $e) {
+            return $this->serverError('update plan of', $e);
+        }
+        return response()->json(["result" => "Plan updated"], 200);
     }    
 
     function deleteLicenseKey(Request $deleteKeyParams){        
-        //delete the license key
-        $deleteLicenseKey = license::where('license_key',$deleteKeyParams->licenseKey)->first();
-        if(!$deleteLicenseKey){
-            return ["result"=>"Key not found"];
-        } else{
-            if($deleteLicenseKey->delete()){
-                return ["result"=>"License key deleted"];
-            } else{
-                return ["result"=>"Something went wrong while deleting license key"];
-            }
+        $license = $this->findLicense($deleteKeyParams);
+        if(!$license){
+            return $this->notFoundLicense();
         }
+
+        try{
+            $license->delete();
+        } catch (\Exception $e){
+            return $this->serverError('delete', $e);
+        }
+
+        return response()->json(["result" => "License key deleted"], 200);
     }
 
-    function getLicenseKey(Request $getKeyParams){       
-        $getKeyDetails = license::where('license_key',$getKeyParams->licenseKey)->first();
-        if(!$getKeyDetails){
-            return ["result"=>"Key not found"];
-        } else{
-            return ["result"=>$getKeyDetails];
-        }
-    }
+    function getLicenseByServiceId(Request $getKeyParams){       
+        $license = $this->findLicense($getKeyParams);
+        if (!$license){
+            return $this->notFoundLicense();
+        } 
+
+        return response()->json([
+            "result"  => "OK",
+            "license" => [
+                "license_key"   => $license->license_key,
+                "status"        => $license->status,
+                "billingcycle"  => $license->billingcycle,
+                "max_domain"    => $license->max_domain,
+                "expiry_date"   => $license->expiry_date,
+            ],
+        ], 200);
+    }    
 }
